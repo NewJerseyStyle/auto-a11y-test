@@ -9,7 +9,9 @@
   },
   "scripts": {
     "build": "ncc build src/main.ts -o dist",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "playwright test",
+    "test:local": "npm run test:server & npm test",
+    "test:server": "node test-server/server.js"
   },
   "repository": {
     "type": "git",
@@ -37,6 +39,7 @@
     "@langchain/groq": "^0.2.0",
     "@langchain/openai": "^0.2.1",
     "commander": "^13.1.0",
+    "express": "^4.18.2",
     "langchain": "^0.3.19",
     "zod": "^3.24.2"
   },

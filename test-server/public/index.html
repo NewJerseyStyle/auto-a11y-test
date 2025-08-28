@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Site - Home Page</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1 {
+            color: #333;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+        }
+        .content {
+            margin: 20px 0;
+            padding: 20px;
+            background-color: #f4f4f4;
+            border-radius: 5px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px 0;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:focus {
+            outline: 3px solid #ffd700;
+            outline-offset: 2px;
+        }
+        .info-section {
+            margin: 30px 0;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Welcome to the Test Website</h1>
+        <nav role="navigation" aria-label="Main navigation">
+            <ul>
+                <li><a href="#main-content">Skip to main content</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main id="main-content">
+        <div class="content">
+            <h2>About This Test Site</h2>
+            <p>This is a demonstration website designed to test AI-powered screen reader navigation capabilities. The site contains multiple pages with various interactive elements.</p>
+            
+            <div class="info-section">
+                <h3>General Information</h3>
+                <p>This test environment simulates a typical web application with multiple pages and interactive elements. The AI assistant should be able to navigate through the site using screen reader technology to find specific information.</p>
+                
+                <p>There are several interesting facts scattered throughout this website:</p>
+                <ul>
+                    <li>The website was created in 2024</li>
+                    <li>It supports multiple accessibility standards</li>
+                    <li>Navigation is optimized for keyboard users</li>
+                </ul>
+            </div>
+
+            <div class="info-section">
+                <h3>Hidden Knowledge</h3>
+                <p>Somewhere on this website, there's a special piece of information that the AI needs to discover. The challenge is to navigate to find it without explicit instructions about where to look.</p>
+                
+                <button onclick="window.location.href='/secret-info'" aria-label="Navigate to discover hidden information">
+                    Discover More Information
+                </button>
+            </div>
+
+            <div class="info-section">
+                <h3>Contact Information</h3>
+                <p>For questions about this test site, please contact the development team.</p>
+                <address>
+                    Email: <a href="mailto:test@example.com">test@example.com</a><br>
+                    Phone: <span aria-label="Phone number">555-0123</span>
+                </address>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <p>&copy; 2024 Test Website. All rights reserved.</p>
+        <p>This site is designed for accessibility testing purposes.</p>
+    </footer>
+</body>
+</html>
