@@ -1,0 +1,16 @@
+[
+    {
+        "goal": "Navigate to the homepage."
+    },
+    {
+        "goal": "View the homepage and guess what the site is about.",
+        "expect": "It is the source code repository of software."
+    },
+    {
+        "goal": "Submit the contact form."
+    },
+    {
+        "goal": "Access the FAQ section and find info about payment method.",
+        "expect": "It is open source project and there is no payment methods."
+    }
+]

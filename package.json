@@ -1,0 +1,50 @@
+{
+  "name": "screenreader-ux-checkbot",
+  "version": "0.0.1",
+  "description": "Proof of concept for an AI-powered system that uses a screen reader to assess the user experience (UX) of a website for users with visual impairments. The AI simulates human interaction, providing a report on achieved and failed goals, focusing on ease of use and accessibility.",
+  "type": "module",
+  "main": "index.js",
+  "bin": {
+    "test": "index.js"
+  },
+  "scripts": {
+    "build": "ncc build src/main.ts -o dist",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/NewJerseyStyle/AI-Website-ScreenReader-Navigation-Tester.git"
+  },
+  "keywords": [
+    "web accessibility",
+    "accessibility testing",
+    "screen reader",
+    "automated testing",
+    "unit testing",
+    "e2e testing",
+    "accessibility checker"
+  ],
+  "author": "NewJerseyStyle",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/NewJerseyStyle/AI-Website-ScreenReader-Navigation-Tester/issues"
+  },
+  "homepage": "https://github.com/NewJerseyStyle/AI-Website-ScreenReader-Navigation-Tester#readme",
+  "dependencies": {
+    "@actions/core": "^1.10.1",
+    "@actions/github": "^6.0.0",
+    "@langchain/core": "^0.3.42",
+    "@langchain/groq": "^0.2.0",
+    "@langchain/openai": "^0.2.1",
+    "commander": "^13.1.0",
+    "langchain": "^0.3.19",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@guidepup/guidepup": "^0.24.0",
+    "@guidepup/playwright": "^0.14.2",
+    "@playwright/test": "^1.51.1",
+    "@vercel/ncc": "^0.38.1",
+    "typescript": "^5.5.2"
+  }
+}

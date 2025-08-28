@@ -1,0 +1,44 @@
+name: 'AI Website Accessibility Tester'
+description: 'Tests a website for accessibility using an AI-powered screen reader.'
+author: 'NewJerseyStyle'
+
+inputs:
+  test-url:
+    description: 'The URL of the website to test.'
+    required: true
+  goals-path:
+    description: 'The path to the JSON file containing the test goals.'
+    required: true
+  groq-api-key:
+    description: 'The API key for the Groq API.'
+    required: false
+  openai-api-key:
+    description: 'The API key for the OpenAI compatible API.'
+    required: false
+  openai-api-base:
+    description: 'The base URL for the OpenAI compatible API.'
+    required: false
+  groq-model:
+    description: 'The Groq model to use.'
+    default: 'llama-3.3-70b-versatile'
+  groq-model-temp:
+    description: 'The temperature for the Groq model.'
+    default: '0'
+  openai-model:
+    description: 'The OpenAI model to use.'
+    default: 'gpt-4'
+  openai-model-temp:
+    description: 'The temperature for the OpenAI model.'
+    default: '0'
+  github-token:
+    description: 'The GitHub token for creating issues.'
+    required: true
+    default: '${{ github.token }}'
+
+runs:
+  using: 'node20'
+  main: 'dist/index.js'
+
+branding:
+  icon: 'check-circle'
+  color: 'green'
