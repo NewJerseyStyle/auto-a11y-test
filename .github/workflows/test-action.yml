@@ -19,7 +19,7 @@ env:
 
 jobs:
   test-navigation:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     
     steps:
     - name: Checkout repository
@@ -37,7 +37,7 @@ jobs:
         npm install express
     
     - name: Install Playwright browsers
-      run: npx playwright install --with-deps chromium
+      run: npx playwright install chromium
     
     - name: Setup screen reader automation
       uses: guidepup/setup-action@0.17.2
@@ -71,7 +71,7 @@ jobs:
         ai-api-key: ${{ env.AI_API_KEY }}
 
   validate-accessibility:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     needs: test-navigation
     
     steps:

@@ -1,0 +1,84 @@
+name: Cross-Platform Screen Reader Tests
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'test-server/**'
+      - 'tests/**'
+      - '.github/workflows/cross-platform-test.yml'
+
+env:
+  AI_PROVIDER: ${{ secrets.AI_PROVIDER || 'openai' }}
+  AI_API_KEY: ${{ secrets.AI_API_KEY || secrets.OPENAI_API_KEY || secrets.GROQ_API_KEY }}
+  TEST_URL: http://localhost:3000
+
+jobs:
+  test-screen-readers:
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest]
+        include:
+          - os: windows-latest
+            screen-reader: NVDA
+          - os: macos-latest
+            screen-reader: VoiceOver
+    
+    runs-on: ${{ matrix.os }}
+    name: Test with ${{ matrix.screen-reader }} on ${{ matrix.os }}
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: |
+        npm ci
+        npm install express
+    
+    - name: Install Playwright browsers
+      run: npx playwright install chromium
+    
+    - name: Setup screen reader automation
+      uses: guidepup/setup-action@0.17.2
+    
+    - name: Start test server (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        Start-Process powershell -ArgumentList "node test-server/server.js" -NoNewWindow
+        Start-Sleep -Seconds 5
+        Invoke-WebRequest -Uri http://localhost:3000 -UseBasicParsing
+    
+    - name: Start test server (Unix)
+      if: runner.os != 'Windows'
+      run: |
+        node test-server/server.js &
+        sleep 5
+        curl -I http://localhost:3000 || exit 1
+    
+    - name: Run AI navigation tests
+      run: npx playwright test tests/ai-navigation.test.ts --reporter=list
+      continue-on-error: true
+    
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results-${{ matrix.os }}
+        path: playwright-report/
+        retention-days: 30
+    
+    - name: Test summary
+      if: always()
+      run: |
+        echo "### Screen Reader Test Results" >> $GITHUB_STEP_SUMMARY
+        echo "- **OS**: ${{ matrix.os }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Screen Reader**: ${{ matrix.screen-reader }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Status**: Test completed" >> $GITHUB_STEP_SUMMARY

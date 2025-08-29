@@ -23,7 +23,7 @@ env:
 jobs:
   build:
 
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
 
     strategy:
       matrix:
@@ -40,7 +40,7 @@ jobs:
     - name: Install dependencies
       run: npm install
     - name: Install Playwright browsers
-      run: npx playwright install --with-deps webkit
+      run: npx playwright install webkit
     - name: Set Up Environment For Screen Reader Automation
       uses: guidepup/setup-action@0.17.2
     - name: Run Playwright tests
