@@ -93,6 +93,9 @@ jobs:
         npm ci
         npm install express axe-core
     
+    - name: Install Playwright browsers
+      run: npx playwright install --with-deps chromium
+    
     - name: Start test server
       shell: bash
       run: |
