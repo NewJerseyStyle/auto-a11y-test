@@ -1,7 +1,8 @@
 import { test, expect } from '@playwright/test';
-import { voiceOver } from '@guidepup/playwright';
+import { nvda, voiceOver } from '@guidepup/playwright';
 import { OpenAI } from '@langchain/openai';
 import { GroqCloud } from '@langchain/groq';
+import * as os from 'os';
 
 const AI_PROVIDER = process.env.AI_PROVIDER || 'openai';
 const AI_API_KEY = process.env.AI_API_KEY || process.env.OPENAI_API_KEY || process.env.GROQ_API_KEY;
@@ -30,7 +31,15 @@ test.describe('AI-Powered Screen Reader Navigation Test', () => {
     
     await page.goto(TEST_URL);
     
-    const screenReader = await voiceOver.start();
+    // Use NVDA on Windows, VoiceOver on macOS
+    const isWindows = os.platform() === 'win32';
+    const isMac = os.platform() === 'darwin';
+    
+    if (!isWindows && !isMac) {
+      test.skip(true, 'Screen reader tests only supported on Windows (NVDA) and macOS (VoiceOver)');
+    }
+    
+    const screenReader = isWindows ? await nvda.start() : await voiceOver.start();
     
     try {
       let navigationComplete = false;
