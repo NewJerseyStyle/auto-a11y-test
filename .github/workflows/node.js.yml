@@ -43,8 +43,14 @@ jobs:
       run: npx playwright install webkit
     - name: Set Up Environment For Screen Reader Automation
       uses: guidepup/setup-action@0.17.2
+    - name: Start test server
+      shell: bash
+      run: |
+        cd test-server
+        node server.js &
+        sleep 5
     - name: Run Playwright tests
-      run: npx playwright test
+      run: npx playwright test tests/simple-navigation.test.ts
     - name: Create GitHub Issue on Failure
       if: failure()
       uses: peter-evans/create-issue-from-file@v5

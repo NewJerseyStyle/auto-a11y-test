@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { nvda, voiceOver } from '@guidepup/playwright';
 import { OpenAI } from '@langchain/openai';
-import { GroqCloud } from '@langchain/groq';
+import { Groq } from '@langchain/groq';
 import * as os from 'os';
 
 const AI_PROVIDER = process.env.AI_PROVIDER || 'openai';
@@ -10,7 +10,7 @@ const TEST_URL = process.env.TEST_URL || 'http://localhost:3000';
 
 function getAIModel() {
   if (AI_PROVIDER === 'groq') {
-    return new GroqCloud({
+    return new Groq({
       apiKey: AI_API_KEY,
       model: 'llama-3.1-70b-versatile',
       temperature: 0.3,

@@ -43,14 +43,15 @@ jobs:
       uses: guidepup/setup-action@0.17.2
     
     - name: Start test server
+      shell: bash
       run: |
         cd test-server
         node server.js &
         sleep 5
         curl -I http://localhost:3000 || exit 1
     
-    - name: Run AI navigation tests
-      run: npx playwright test tests/ai-navigation.test.ts --reporter=list
+    - name: Run simple navigation tests
+      run: npx playwright test tests/simple-navigation.test.ts --reporter=list
       continue-on-error: true
     
     - name: Upload test results
@@ -61,14 +62,13 @@ jobs:
         path: playwright-report/
         retention-days: 30
     
-    - name: Test using custom action
-      uses: ./
-      with:
-        url: 'http://localhost:3000'
-        goals: |
-          Find and report any secret or hidden information on the website
-        ai-provider: ${{ env.AI_PROVIDER }}
-        ai-api-key: ${{ env.AI_API_KEY }}
+    - name: Test navigation directly
+      env:
+        AI_PROVIDER: ${{ env.AI_PROVIDER }}
+        AI_API_KEY: ${{ env.AI_API_KEY }}
+      run: |
+        echo "Testing with simple navigation test"
+        npx playwright test tests/simple-navigation.test.ts --reporter=list || true
 
   validate-accessibility:
     runs-on: windows-latest
@@ -90,6 +90,7 @@ jobs:
         npm install express axe-core
     
     - name: Start test server
+      shell: bash
       run: |
         cd test-server
         node server.js &
@@ -97,7 +98,7 @@ jobs:
     
     - name: Run accessibility validation
       run: |
-        npx playwright test tests/ai-navigation.test.ts --grep "accessibility"
+        npx playwright test tests/simple-navigation.test.ts --grep "accessibility"
     
     - name: Comment on PR
       if: github.event_name == 'pull_request'

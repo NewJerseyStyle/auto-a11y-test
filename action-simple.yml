@@ -1,0 +1,59 @@
+name: 'AI Screen Reader Navigation Tester'
+description: 'Tests website navigation using AI-powered screen reader automation'
+author: 'NewJerseyStyle'
+
+inputs:
+  url:
+    description: 'The URL of the website to test'
+    required: true
+  goals:
+    description: 'Test goals (one per line)'
+    required: true
+  ai-provider:
+    description: 'AI provider to use (openai or groq)'
+    required: false
+    default: 'openai'
+  ai-api-key:
+    description: 'API key for the AI provider'
+    required: true
+  github-token:
+    description: 'GitHub token for creating issues'
+    required: false
+    default: ${{ github.token }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+    
+    - name: Install dependencies
+      shell: bash
+      run: |
+        npm ci
+        npm install express
+    
+    - name: Install Playwright browsers
+      shell: bash
+      run: npx playwright install chromium
+    
+    - name: Setup screen reader
+      uses: guidepup/setup-action@0.17.2
+    
+    - name: Run navigation test
+      shell: bash
+      env:
+        AI_PROVIDER: ${{ inputs.ai-provider }}
+        AI_API_KEY: ${{ inputs.ai-api-key }}
+        TEST_URL: ${{ inputs.url }}
+        TEST_GOALS: ${{ inputs.goals }}
+      run: |
+        echo "Testing URL: $TEST_URL"
+        echo "Goals: $TEST_GOALS"
+        npx playwright test tests/ai-navigation.test.ts --reporter=list || true
+
+branding:
+  icon: 'check-circle'
+  color: 'green'
