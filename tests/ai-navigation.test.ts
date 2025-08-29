@@ -6,7 +6,7 @@ import * as os from 'os';
 
 const AI_PROVIDER = process.env.AI_PROVIDER || 'openai';
 const AI_API_KEY = process.env.AI_API_KEY || process.env.OPENAI_API_KEY || process.env.GROQ_API_KEY;
-const TEST_URL = process.env.TEST_URL || 'http://localhost:3000';
+const TEST_URL = process.env.TEST_URL || 'http://localhost:3456';
 
 function getAIModel() {
   if (AI_PROVIDER === 'groq') {

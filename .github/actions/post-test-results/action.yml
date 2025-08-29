@@ -1,0 +1,178 @@
+name: 'Post Test Results to PR'
+description: 'Posts accessibility test results as a comment on pull requests'
+inputs:
+  github-token:
+    description: 'GitHub token for posting comments'
+    required: true
+    default: ${{ github.token }}
+  test-results-file:
+    description: 'Path to test results JSON file'
+    required: false
+    default: 'test-results.json'
+  platform:
+    description: 'Platform where tests ran (e.g., "Windows with NVDA")'
+    required: false
+    default: 'Unknown'
+  browser:
+    description: 'Browser used for testing'
+    required: false
+    default: 'Chromium'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Post results to PR
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ inputs.github-token }}
+        script: |
+          const fs = require('fs');
+          const path = require('path');
+          
+          // Function to read and parse test results
+          function parseTestResults(filePath) {
+            let results = {
+              passed: 0,
+              failed: 0,
+              skipped: 0,
+              total: 0,
+              failedTests: [],
+              accessibilityIssues: []
+            };
+            
+            try {
+              if (fs.existsSync(filePath)) {
+                const content = fs.readFileSync(filePath, 'utf8');
+                
+                // Try to parse as JSON first
+                try {
+                  const jsonData = JSON.parse(content);
+                  if (jsonData.passed !== undefined) results.passed = jsonData.passed;
+                  if (jsonData.failed !== undefined) results.failed = jsonData.failed;
+                  if (jsonData.skipped !== undefined) results.skipped = jsonData.skipped;
+                  if (jsonData.failedTests) results.failedTests = jsonData.failedTests;
+                  if (jsonData.accessibilityIssues) results.accessibilityIssues = jsonData.accessibilityIssues;
+                } catch {
+                  // If not JSON, try to parse as text output
+                  const passedMatch = content.match(/(\d+) passed/);
+                  const failedMatch = content.match(/(\d+) failed/);
+                  const skippedMatch = content.match(/(\d+) skipped/);
+                  
+                  if (passedMatch) results.passed = parseInt(passedMatch[1]);
+                  if (failedMatch) results.failed = parseInt(failedMatch[1]);
+                  if (skippedMatch) results.skipped = parseInt(skippedMatch[1]);
+                }
+                
+                results.total = results.passed + results.failed + results.skipped;
+              }
+            } catch (error) {
+              console.error('Error reading test results:', error);
+            }
+            
+            return results;
+          }
+          
+          // Parse test results
+          const results = parseTestResults('${{ inputs.test-results-file }}');
+          const passRate = results.total > 0 ? ((results.passed / results.total) * 100).toFixed(1) : 0;
+          const status = results.failed === 0 ? '✅' : '❌';
+          const statusText = results.failed === 0 ? 'PASSED' : 'FAILED';
+          
+          // Build comment
+          let comment = `## ${status} AI Accessibility Test Results\n\n`;
+          comment += `**Status:** ${statusText}\n`;
+          comment += `**Platform:** ${{ inputs.platform }}\n`;
+          comment += `**Browser:** ${{ inputs.browser }}\n`;
+          comment += `**Pass Rate:** ${passRate}%\n`;
+          comment += `**Commit:** ${context.sha.substring(0, 7)}\n\n`;
+          
+          // Summary table
+          comment += `### 📊 Summary\n\n`;
+          comment += `| Metric | Count | Percentage |\n`;
+          comment += `|--------|-------|------------|\n`;
+          comment += `| ✅ Passed | ${results.passed} | ${results.total > 0 ? ((results.passed/results.total)*100).toFixed(1) : 0}% |\n`;
+          comment += `| ❌ Failed | ${results.failed} | ${results.total > 0 ? ((results.failed/results.total)*100).toFixed(1) : 0}% |\n`;
+          comment += `| ⏭️ Skipped | ${results.skipped} | ${results.total > 0 ? ((results.skipped/results.total)*100).toFixed(1) : 0}% |\n`;
+          comment += `| **Total** | **${results.total}** | **100%** |\n\n`;
+          
+          // Failed tests details
+          if (results.failedTests && results.failedTests.length > 0) {
+            comment += `### ❌ Failed Tests\n\n`;
+            comment += `<details>\n<summary>Click to expand failed test details</summary>\n\n`;
+            results.failedTests.forEach((test, index) => {
+              comment += `**${index + 1}. ${test.name}**\n`;
+              if (test.error) {
+                comment += `\`\`\`\n${test.error}\n\`\`\`\n`;
+              }
+              comment += '\n';
+            });
+            comment += `</details>\n\n`;
+          }
+          
+          // Accessibility issues
+          if (results.accessibilityIssues && results.accessibilityIssues.length > 0) {
+            comment += `### ⚠️ Accessibility Issues Found\n\n`;
+            comment += `| Issue | Severity | WCAG Criterion |\n`;
+            comment += `|-------|----------|----------------|\n`;
+            results.accessibilityIssues.forEach(issue => {
+              const severityIcon = {
+                'critical': '🔴',
+                'serious': '🟠', 
+                'moderate': '🟡',
+                'minor': '🔵'
+              }[issue.severity] || '⚪';
+              comment += `| ${issue.description} | ${severityIcon} ${issue.severity} | ${issue.wcag || 'N/A'} |\n`;
+            });
+            comment += '\n';
+          }
+          
+          // Action items
+          if (results.failed > 0) {
+            comment += `### 🔧 Action Required\n\n`;
+            comment += `This PR has failing accessibility tests. Please:\n\n`;
+            comment += `1. Review the failed tests above\n`;
+            comment += `2. Fix any accessibility issues\n`;
+            comment += `3. Re-run the tests locally using \`npm test\`\n`;
+            comment += `4. Push your fixes to update this PR\n\n`;
+          } else if (results.passed > 0) {
+            comment += `### ✅ Good to Go!\n\n`;
+            comment += `All accessibility tests passed. This PR is ready for review.\n\n`;
+          }
+          
+          // Footer
+          comment += `---\n`;
+          comment += `📖 [View Full Test Report](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})\n`;
+          comment += `🤖 *Generated by [AI Website ScreenReader Navigation Tester](https://github.com/NewJerseyStyle/AI-Website-ScreenReader-Navigation-Tester)*\n`;
+          
+          // Check if we already commented on this PR
+          const { data: comments } = await github.rest.issues.listComments({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number
+          });
+          
+          const botComment = comments.find(comment => 
+            comment.body.includes('AI Accessibility Test Results') &&
+            comment.user.type === 'Bot'
+          );
+          
+          if (botComment) {
+            // Update existing comment
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: botComment.id,
+              body: comment
+            });
+            console.log('Updated existing test results comment');
+          } else {
+            // Create new comment
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: comment
+            });
+            console.log('Posted new test results comment');
+          }

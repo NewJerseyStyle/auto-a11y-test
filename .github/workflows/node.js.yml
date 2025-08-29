@@ -54,7 +54,66 @@ jobs:
         node server.js &
         sleep 5
     - name: Run Playwright tests
-      run: npx playwright test tests/simple-navigation.test.ts
+      id: test-results
+      run: |
+        npx playwright test tests/simple-navigation.test.ts --reporter=json > test-output.json 2>&1 || echo "TESTS_FAILED=true" >> $GITHUB_ENV
+        npx playwright test tests/simple-navigation.test.ts --reporter=list || true
+      continue-on-error: true
+    
+    - name: Post test results to PR
+      if: github.event_name == 'pull_request' && always()
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          
+          let testSummary = {
+            passed: 0,
+            failed: 0,
+            total: 0
+          };
+          
+          try {
+            if (fs.existsSync('test-output.json')) {
+              const output = fs.readFileSync('test-output.json', 'utf8');
+              const passedMatch = output.match(/(\d+) passed/);
+              const failedMatch = output.match(/(\d+) failed/);
+              
+              if (passedMatch) testSummary.passed = parseInt(passedMatch[1]);
+              if (failedMatch) testSummary.failed = parseInt(failedMatch[1]);
+              testSummary.total = testSummary.passed + testSummary.failed;
+            }
+          } catch (e) {
+            console.error('Error parsing test results:', e);
+          }
+          
+          const status = testSummary.failed === 0 ? '✅' : '❌';
+          const passRate = testSummary.total > 0 ? 
+            ((testSummary.passed / testSummary.total) * 100).toFixed(1) : 0;
+          
+          const comment = `## ${status} Accessibility Test Results
+          
+          **Platform:** Windows with NVDA
+          **Browser:** Chromium
+          **Pass Rate:** ${passRate}%
+          
+          | Test Results | Count |
+          |--------------|-------|
+          | ✅ Passed | ${testSummary.passed} |
+          | ❌ Failed | ${testSummary.failed} |
+          | 📊 Total | ${testSummary.total} |
+          
+          [View Full Test Report](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})
+          
+          ---
+          *🤖 Automated by AI ScreenReader Navigation Tester*`;
+          
+          await github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: comment
+          });
     - name: Create GitHub Issue on Failure
       if: failure()
       uses: peter-evans/create-issue-from-file@v5

@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import * as os from 'os';
 
-const TEST_URL = process.env.TEST_URL || 'http://localhost:3000';
+const TEST_URL = process.env.TEST_URL || 'http://localhost:3456';
 
 test.describe('Simple Navigation Test', () => {
   test('Basic page navigation without screen reader', async ({ page, browserName }) => {
