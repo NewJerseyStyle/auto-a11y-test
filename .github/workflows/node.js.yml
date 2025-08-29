@@ -39,7 +39,11 @@ jobs:
         cache: 'npm'
     - name: Install dependencies
       run: npm install
-    - name: Install Playwright browsers
+    - name: Install Playwright browsers (Windows)
+      if: runner.os == 'Windows'
+      run: npx playwright install --with-deps chromium
+    - name: Install Playwright browsers (macOS)
+      if: runner.os == 'macOS'
       run: npx playwright install webkit
     - name: Set Up Environment For Screen Reader Automation
       uses: guidepup/setup-action@0.17.2

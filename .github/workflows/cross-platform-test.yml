@@ -42,8 +42,12 @@ jobs:
         npm ci
         npm install express
     
-    - name: Install Playwright browsers
-      run: npx playwright install chromium
+    - name: Install Playwright browsers (Windows)
+      if: runner.os == 'Windows'
+      run: npx playwright install --with-deps chromium
+    - name: Install Playwright browsers (macOS)
+      if: runner.os == 'macOS'
+      run: npx playwright install webkit
     
     - name: Setup screen reader automation
       uses: guidepup/setup-action@0.17.2

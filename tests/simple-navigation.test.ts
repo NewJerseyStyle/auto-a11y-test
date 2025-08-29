@@ -5,7 +5,8 @@ const TEST_URL = process.env.TEST_URL || 'http://localhost:3000';
 
 test.describe('Simple Navigation Test', () => {
   test('Basic page navigation without screen reader', async ({ page, browserName }) => {
-    test.skip(browserName !== 'chromium', 'Only run in Chromium for consistency');
+    // Run on both chromium and webkit
+    console.log(`Running test in ${browserName}`);
     
     console.log('Testing URL:', TEST_URL);
     
