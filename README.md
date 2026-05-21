@@ -90,21 +90,39 @@ on:
 jobs:
   test:
     runs-on: windows-latest
+    permissions:
+      contents: read
+      issues: write
     
     steps:
     - uses: actions/checkout@v4
+
+    - name: Install Chromium for Playwright
+      run: npx --yes playwright@1.51.1 install chromium
+
+    - name: Set up screen reader automation
+      uses: guidepup/setup-action@0.17.2
+
+    - name: Create accessibility goals
+      shell: bash
+      run: |
+        cat > accessibility-goals.json <<'JSON'
+        [
+          { "goal": "Navigate to the contact page" },
+          { "goal": "Find customer service phone number" },
+          { "goal": "Locate business hours" },
+          { "goal": "Test the search functionality" }
+        ]
+        JSON
     
     - name: Test Accessibility
       uses: NewJerseyStyle/auto-a11y-test@main
       with:
-        url: 'https://your-website.com'
-        goals: |
-          Navigate to the contact page
-          Find customer service phone number
-          Locate business hours
-          Test the search functionality
-        ai-provider: 'openai'
-        ai-api-key: ${{ secrets.OPENAI_API_KEY }}
+        test-url: 'https://your-website.com'
+        goals-path: accessibility-goals.json
+        openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+        openai-model: gpt-4o-mini
+        github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
 #### Step 2: Add Your API Key
@@ -242,19 +260,23 @@ The tests are run automatically on every push or pull request to the `main` bran
 | Platform | Screen Reader | GitHub Runner |
 |----------|--------------|---------------|
 | Windows | NVDA (Free) | `windows-latest` |
-| macOS | VoiceOver (Built-in) | `macos-latest` |
+
+The action currently drives NVDA only. VoiceOver support would need a separate implementation path.
 
 ### Configuration Options
 
 | Option | Required | Description | Example |
 |--------|----------|-------------|---------|  
-| `url` | Yes | Website to test | `https://example.com` |
-| `goals` | Yes | Test objectives (one per line) | `Find contact info` |
-| `ai-provider` | Yes | AI service to use | `openai` or `groq` |
-| `ai-api-key` | Yes | API key for AI service | `${{ secrets.OPENAI_API_KEY }}` |
-| `max-steps` | No | Maximum navigation attempts | `20` (default) |
-| `viewport-width` | No | Browser width | `1280` (default) |
-| `viewport-height` | No | Browser height | `720` (default) |
+| `test-url` | Yes | Website to test | `https://example.com` |
+| `goals-path` | Yes | Path to a JSON goals file | `accessibility-goals.json` |
+| `openai-api-key` | No | API key for OpenAI or an OpenAI-compatible endpoint | `${{ secrets.OPENAI_API_KEY }}` |
+| `openai-api-base` | No | Base URL for an OpenAI-compatible endpoint | `https://api.openai.com/v1` |
+| `openai-model` | No | OpenAI model name | `gpt-4o-mini` |
+| `openai-model-temp` | No | OpenAI model temperature | `0` |
+| `groq-api-key` | No | API key for Groq | `${{ secrets.GROQ_API_KEY }}` |
+| `groq-model` | No | Groq model name | `llama-3.3-70b-versatile` |
+| `groq-model-temp` | No | Groq model temperature | `0` |
+| `github-token` | Yes | Token used to create failure issues | `${{ secrets.GITHUB_TOKEN }}` |
 
 ### Running Locally
 

@@ -1,8 +1,13 @@
 import * as core from '@actions/core';
 import * as github from '@actions/github';
 import * as fs from 'fs';
-import { webkit } from 'playwright';
-import { nvda } from '@guidepup/nvda';
+import { chromium, type Browser } from 'playwright';
+import {
+  nvda,
+  WindowsKeyCodes,
+  WindowsModifiers,
+  type WindowsKeyCodeCommand,
+} from '@guidepup/guidepup';
 import { createToolCallingAgent, AgentExecutor } from 'langchain/agents';
 import { ChatPromptTemplate } from '@langchain/core/prompts';
 import { tool } from '@langchain/core/tools';
@@ -10,9 +15,94 @@ import { ChatGroq } from '@langchain/groq';
 import { ChatOpenAI } from '@langchain/openai';
 import { z } from 'zod';
 
+type Goal = {
+  goal: string;
+  expect?: string;
+};
+
+type Failure = {
+  goal: string;
+  spokenPhraseLog: string[];
+  error: unknown;
+};
+
+const MAX_APPLICATION_SWITCH_RETRY_COUNT = 10;
+const CHROMIUM_APPLICATION_NAME = 'Chromium';
+const SWITCH_APPLICATION: WindowsKeyCodeCommand = {
+  keyCode: [WindowsKeyCodes.Escape],
+  modifiers: [WindowsModifiers.Alt],
+};
+const MOVE_TO_TOP: WindowsKeyCodeCommand = {
+  keyCode: [WindowsKeyCodes.Home],
+  modifiers: [WindowsModifiers.Control],
+};
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function messageContentToString(content: unknown): string {
+  if (typeof content === 'string') {
+    return content;
+  }
+
+  return JSON.stringify(content) ?? '';
+}
+
+function parseGoals(goalsPath: string): Goal[] {
+  const parsed = JSON.parse(fs.readFileSync(goalsPath, 'utf-8')) as unknown;
+  if (!Array.isArray(parsed)) {
+    throw new Error(`Goals file must contain a JSON array: ${goalsPath}`);
+  }
+
+  return parsed.map((item, index) => {
+    if (!item || typeof item !== 'object' || typeof (item as Goal).goal !== 'string') {
+      throw new Error(`Goal at index ${index} must be an object with a string "goal" property.`);
+    }
+
+    const goal = item as Goal;
+    return {
+      goal: goal.goal,
+      ...(typeof goal.expect === 'string' ? { expect: goal.expect } : {}),
+    };
+  });
+}
+
+async function focusBrowser(applicationName: string) {
+  await nvda.perform(nvda.keyboardCommands.reportTitle);
+  let windowTitle = await nvda.lastSpokenPhrase();
+  if (windowTitle.includes(applicationName)) {
+    return;
+  }
+
+  for (let attempt = 0; attempt < MAX_APPLICATION_SWITCH_RETRY_COUNT; attempt += 1) {
+    await nvda.perform(SWITCH_APPLICATION);
+    await nvda.perform(nvda.keyboardCommands.reportTitle);
+    windowTitle = await nvda.lastSpokenPhrase();
+    if (windowTitle.includes(applicationName)) {
+      return;
+    }
+  }
+
+  throw new Error(`Unable to focus browser window containing "${applicationName}".`);
+}
+
+async function navigateToWebContent() {
+  await nvda.perform(nvda.keyboardCommands.exitFocusMode);
+  await focusBrowser(CHROMIUM_APPLICATION_NAME);
+  await nvda.perform(nvda.keyboardCommands.readNextFocusableItem);
+  await nvda.perform(nvda.keyboardCommands.toggleBetweenBrowseAndFocusMode);
+  await nvda.perform(nvda.keyboardCommands.toggleBetweenBrowseAndFocusMode);
+  await nvda.perform(nvda.keyboardCommands.exitFocusMode);
+  await nvda.perform(MOVE_TO_TOP);
+  await nvda.clearItemTextLog();
+  await nvda.clearSpokenPhraseLog();
+}
+
 async function run() {
-  const failures = [];
-  let browser;
+  const failures: Failure[] = [];
+  let browser: Browser | undefined;
+  let nvdaStarted = false;
   
   try {
     // Get inputs
@@ -31,53 +121,63 @@ async function run() {
     const octokit = github.getOctokit(token);
 
     // Read goals file
-    const goals = JSON.parse(fs.readFileSync(goalsPath, 'utf-8'));
+    const goals = parseGoals(goalsPath);
 
     // Initialize LLM
     let llm;
     let model;
 
-    if (openaiApiBase && !openaiApiBase.includes("groq.com")) {
+    if (openaiApiBase.includes('groq.com')) {
+      const apiKey = groqApiKey || openaiApiKey;
+      if (!apiKey) {
+        throw new Error('A Groq API key is required when openai-api-base points to Groq.');
+      }
+      const groqOptions = {
+        model: groqModel,
+        temperature: groqModelTemp,
+        apiKey,
+        baseUrl: openaiApiBase,
+      };
+      llm = new ChatGroq(groqOptions);
+      model = new ChatGroq({ ...groqOptions, temperature: 0 }).bind({
+        response_format: { type: 'json_object' },
+      });
+    } else if (openaiApiKey) {
       const openAIOptions = {
-        modelName: openaiModel,
+        model: openaiModel,
         temperature: openaiModelTemp,
         apiKey: openaiApiKey,
-        baseURL: openaiApiBase,
+        ...(openaiApiBase ? { configuration: { baseURL: openaiApiBase } } : {}),
       };
       llm = new ChatOpenAI(openAIOptions);
       model = new ChatOpenAI({ ...openAIOptions, temperature: 0 }).bind({
-        response_format: { type: "json_object" },
+        response_format: { type: 'json_object' },
       });
-    } else {
-      const groqOptions: {
-        model: string;
-        temperature: number;
-        apiKey: string;
-        baseURL?: string;
-      } = {
+    } else if (groqApiKey) {
+      const groqOptions = {
         model: groqModel,
         temperature: groqModelTemp,
         apiKey: groqApiKey,
       };
-      if(openaiApiBase) {
-        groqOptions.baseURL = openaiApiBase;
-      }
       llm = new ChatGroq(groqOptions);
       model = new ChatGroq({ ...groqOptions, temperature: 0 }).bind({
-        response_format: { type: "json_object" },
+        response_format: { type: 'json_object' },
       });
+    } else {
+      throw new Error('Either openai-api-key or groq-api-key is required.');
     }
 
     // Launch browser and screen reader
-    browser = await webkit.launch({ headless: false });
+    browser = await chromium.launch({ headless: false });
     const page = await browser.newPage();
     await nvda.start();
+    nvdaStarted = true;
 
     for (const item of goals) {
       try {
         await page.goto(testUrl, { waitUntil: 'load' });
         await page.waitForSelector('body');
-        await nvda.navigateToWebContent();
+        await navigateToWebContent();
 
         const keyboardNaviNextItemTool = tool(async () => { await nvda.next(); return await nvda.lastSpokenPhrase(); }, { name: "next_item_function", description: "Move to the next item." });
         const reportDateTimeTool = tool(async () => { await nvda.perform(nvda.keyboardCommands.reportDateTime); return await nvda.lastSpokenPhrase(); }, { name: "report_date_time_function", description: "Report the current date and time." });
@@ -106,7 +206,7 @@ async function run() {
         const performDefaultActionForItemTool = tool(async () => { await nvda.perform(nvda.keyboardCommands.performDefaultActionForItem); return await nvda.lastSpokenPhrase(); }, { name: "perform_default_action_for_item_function", description: "Perform the default action for the current item." });
         const leftMouseClickTool = tool(async () => { await nvda.perform(nvda.keyboardCommands.leftMouseClick); return await nvda.lastSpokenPhrase(); }, { name: "left_mouse_click_function", description: "Perform a left mouse click." });
         const rightMouseClickTool = tool(async () => { await nvda.perform(nvda.keyboardCommands.rightMouseClick); return await nvda.lastSpokenPhrase(); }, { name: "right_mouse_click_function", description: "Perform a right mouse click." });
-        const typeInTool = tool(async (input) => { await page.keyboard.type(input); return await nvda.lastSpokenPhrase(); }, { name: "keyboard_function", description: "Type in the given text to browser.", schema: z.object({ input: z.string() }) });
+        const typeInTool = tool(async ({ input }) => { await page.keyboard.type(input); return await nvda.lastSpokenPhrase(); }, { name: "keyboard_function", description: "Type in the given text to browser.", schema: z.object({ input: z.string() }) });
         const pressEnterTool = tool(async () => { await page.keyboard.press('Enter'); return await nvda.lastSpokenPhrase(); }, { name: "keyboard_press_enter_function", description: "Press enter on keyboard." });
         
         const tools = [keyboardNaviNextItemTool, reportDateTimeTool, reportCurrentFocusTool, reportTitleTool, readActiveWindowTool, readLineTool, moveToNextHeadingTool, moveToPreviousHeadingTool, moveToNextLinkTool, moveToPreviousLinkTool, moveToNextButtonTool, moveToPreviousButtonTool, moveToNextFormFieldTool, moveToPreviousFormFieldTool, moveToNextLandmarkTool, moveToPreviousLandmarkTool, moveToNextTableTool, moveToPreviousTableTool, moveToNextListTool, moveToPreviousListTool, moveToNextSeparatorTool, moveToPreviousSeparatorTool, moveToNextTool, moveToPreviousTool, performDefaultActionForItemTool, leftMouseClickTool, rightMouseClickTool, typeInTool, pressEnterTool];
@@ -121,16 +221,17 @@ async function run() {
         const agent = createToolCallingAgent({ llm, tools, prompt });
         const agentExecutor = new AgentExecutor({ agent, tools });
 
-        let agentOutput = await agentExecutor.invoke({ input: item.goal });
+        const agentOutput = await agentExecutor.invoke({ input: item.goal });
+        const agentConclusion = messageContentToString(agentOutput.output ?? agentOutput);
 
-        if ('expect' in item) {
-          const aiMsg = await model.invoke(`# task: Judge and return JSON with property 'conclusion' as true or false\n# Problem: Does the conclusion of the agent align with our expectated intepretation?\n# Expectation: ${item.expect}\n# Context: ${agentOutput.messages[agentOutput.messages.length - 1].content}`);
-          const aiMsgContent = JSON.parse(aiMsg.content as string);
+        if (item.expect !== undefined) {
+          const aiMsg = await model.invoke(`# task: Judge and return JSON with property 'conclusion' as true or false\n# Problem: Does the conclusion of the agent align with our expected interpretation?\n# Expectation: ${item.expect}\n# Context: ${agentConclusion}`);
+          const aiMsgContent = JSON.parse(messageContentToString(aiMsg.content));
           if (!aiMsgContent.conclusion) throw new Error('Expected condition not met.');
         } else {
           const the_log = await nvda.spokenPhraseLog();
-          const aiMsg = await model.invoke(`# task: Judge and return JSON with property'conclusion' as true or false\n# Problem: Based on the log, did agent achieve its goal?\n# Expectation: ${item.goal}\n# The Log: ${the_log}`);
-          const aiMsgContent = JSON.parse(aiMsg.content as string);
+          const aiMsg = await model.invoke(`# task: Judge and return JSON with property 'conclusion' as true or false\n# Problem: Based on the log, did agent achieve its goal?\n# Expectation: ${item.goal}\n# The Log: ${the_log.join('\n')}`);
+          const aiMsgContent = JSON.parse(messageContentToString(aiMsg.content));
           if (!aiMsgContent.conclusion) throw new Error('Goal not achieved.');
         }
       } catch (error) {
@@ -146,7 +247,7 @@ async function run() {
     if (failures.length > 0) {
       let issueContent = '# Accessibility Test Failures\n\n';
       failures.forEach(failure => {
-        issueContent += `\n---\n\n## Failed Goal: ${failure.goal}\n\n### Screen Reader Log\n\`\`\`\n${failure.spokenPhraseLog.join('\n')}\n\`\`\`\n\n### Error\n\`\`\`\n${failure.error.message}\n\`\`\`\n`;
+        issueContent += `\n---\n\n## Failed Goal: ${failure.goal}\n\n### Screen Reader Log\n\`\`\`\n${failure.spokenPhraseLog.join('\n')}\n\`\`\`\n\n### Error\n\`\`\`\n${getErrorMessage(failure.error)}\n\`\`\`\n`;
       });
 
       await octokit.rest.issues.create({
@@ -160,9 +261,15 @@ async function run() {
       core.setFailed(`${failures.length} accessibility tests failed.`);
     }
   } catch (error) {
-    core.setFailed(error.message);
+    core.setFailed(getErrorMessage(error));
   } finally {
-    await nvda.stop();
+    if (nvdaStarted) {
+      try {
+        await nvda.stop();
+      } catch (error) {
+        core.warning(`Failed to stop NVDA cleanly: ${getErrorMessage(error)}`);
+      }
+    }
     if (browser) {
       await browser.close();
     }
